@@ -6,7 +6,7 @@
 
 #include <parted/parted.h>
 
-#define VERSION   ("1.0.0")
+#define VERSION   ("0.0.1")
 #define MEBIBYTE  (1024*1024)
 #define TEBIBYTE  (1024*1024*1024*1024LL)
 #define FAT16_MIN (16 * MEBIBYTE)
@@ -73,13 +73,15 @@ void print_fs_info(char *file) {
 
   PedFileSystem *fs = ped_file_system_open(&geom);
   if (!fs) errx(1, "ped_file_system_open");
-  printf("%-15s %s\n", "device_type", devtype(dev->type));
+  printf("%-15s %lld\n", "sectors", dev->length);
   printf("%-15s %lld\n", "sector_size", dev->sector_size);
+  printf("%-15s %s\n", "device_type", devtype(dev->type));
   printf("%-15s %s\n", "fs_type", fs->type->name);
   printf("%-15s %lld\n", "fs_start", fs->geom->start);
   printf("%-15s %lld\n", "fs_end", fs->geom->end);
   printf("%-15s %lld\n", "fs_length", fs->geom->length);
 
+  ped_file_system_close(fs);
   ped_device_close(dev);
 }
 

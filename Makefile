@@ -13,9 +13,12 @@ $(out)/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(COMPILE.c) $< -o $@
 
-test/20M:
+$(out)/30M:
 	$(mkdir)
 	-rm $@
 	mkfs.vfat -C $@ $$(( 20 * 1024 ))
+	truncate -s $(notdir $@) $@
+	mcopy -i $@ /usr/share/mythes/th_en_US_v2.dat ::
 
 mkdir = @mkdir -p $(dir $@)
+.DELETE_ON_ERROR:

@@ -62,27 +62,39 @@ PedExceptionOption my_libparted_exception_handler(PedException *ex) {
   return PED_EXCEPTION_UNHANDLED;
 }
 
-void print_fs_info(char *file) {
+typedef struct {
   PedDevice *dev;
-  if (! (dev = ped_device_get(file))) errx(1, "ped_device_get");
-  if (!ped_device_open(dev)) err(1, "ped_device_open");
+  PedFileSystem *fs;
+} BD;
+
+void bd_close(BD *b) {
+  ped_file_system_close(b->fs);
+  ped_device_close(b->dev);
+}
+
+void bd_open(BD *b, char *file) {
+  if (! (b->dev = ped_device_get(file))) errx(1, "ped_device_get");
+  if (!ped_device_open(b->dev)) err(1, "ped_device_open");
 
   PedGeometry geom;
-  if (!ped_geometry_init(&geom, dev, 0, dev->length))
+  PedSector start = 0;
+  if (getenv("START")) start = strtoll(getenv("START"), NULL, 10);
+  if (start < 0) start = 0;
+  if (!ped_geometry_init(&geom, b->dev, start, b->dev->length))
     err(1, "ped_geometry_init");
 
-  PedFileSystem *fs = ped_file_system_open(&geom);
-  if (!fs) errx(1, "ped_file_system_open");
-  printf("%-15s %lld\n", "sectors", dev->length);
-  printf("%-15s %lld\n", "sector_size", dev->sector_size);
-  printf("%-15s %s\n", "device_type", devtype(dev->type));
-  printf("%-15s %s\n", "fs_type", fs->type->name);
-  printf("%-15s %lld\n", "fs_start", fs->geom->start);
-  printf("%-15s %lld\n", "fs_end", fs->geom->end);
-  printf("%-15s %lld\n", "fs_length", fs->geom->length);
+  b->fs = ped_file_system_open(&geom);
+  if (!b->fs) errx(1, "ped_file_system_open");
+}
 
-  ped_file_system_close(fs);
-  ped_device_close(dev);
+void print_fs_info(BD *b) {
+  printf("%-15s %lld\n", "sectors", b->dev->length);
+  printf("%-15s %lld\n", "sector_size", b->dev->sector_size);
+  printf("%-15s %s\n", "device_type", devtype(b->dev->type));
+  printf("%-15s %s\n", "fs_type", b->fs->type->name);
+  printf("%-15s %lld\n", "fs_start", b->fs->geom->start);
+  printf("%-15s %lld\n", "fs_end", b->fs->geom->end);
+  printf("%-15s %lld\n", "fs_length", b->fs->geom->length);
 }
 
 int main(int argc, char **argv) {
@@ -91,8 +103,10 @@ int main(int argc, char **argv) {
   char *file = argv[2];
   ped_exception_set_handler(my_libparted_exception_handler);
 
+  BD b;
+  bd_open(&b, file);
   if (0 == strcmp(argv[1], "info")) {
-    print_fs_info(file);
+    print_fs_info(&b);
 
   } else if (0 == strcmp(argv[1], "resize")) {
     warnx("TODO");
@@ -100,4 +114,6 @@ int main(int argc, char **argv) {
   } else {
     errx(1, "invalid mode");
   }
+
+  bd_close(&b);
 }

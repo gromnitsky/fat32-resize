@@ -3,31 +3,35 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <sys/utsname.h>
 
 #include <parted/parted.h>
 
 #define VERSION   ("0.0.1")
 #define MEBIBYTE  (1024*1024)
 #define TEBIBYTE  (1024*1024*1024*1024LL)
-#define FAT16_MIN (16 * MEBIBYTE)
-#define FAT16_MAX ((long)(4096-1) * MEBIBYTE)
-#define FAT32_MIN (33 * MEBIBYTE)
-#define FAT32_MAX (2 * TEBIBYTE)
+#define FAT16_MIN ( (16 * MEBIBYTE) / 512)
+#define FAT16_MAX ( ((long)(4096-1) * MEBIBYTE) / 512)
+#define FAT32_MIN ( (33 * MEBIBYTE) / 512)
+#define FAT32_MAX ( (2 * TEBIBYTE) / 512)
 
 void usage() {
   fprintf(stderr, "Usage:\n \
         vfat-resize info   file\n \
-        vfat-resize resize file new-size-in-sectors\n \
+        vfat-resize resize file new-length-in-sectors\n \
 \n\
-It doesn't resize partitions, \
-only FAT16/32 filesystems within partitions.\n\
+Doesn't resize partitions, only FAT16/32 filesystems within them.\n\
 You may loose data if you shrink the filesystem.\n\
 \n\
-FLAVOR         MIN,B          MAX,B          MIN,s          MAX,s\n\
-fat16  %13d  %13ld  %13d  %13ld\n\
-fat32  %13d  %13lld  %13d  %13lld\n",
-          FAT16_MIN, FAT16_MAX, FAT16_MIN/512, FAT16_MAX/512,
-          FAT32_MIN, FAT32_MAX, FAT32_MIN/512, FAT32_MAX/512);
+FLAVOR         MIN          MAX\n\
+fat16   %10d   %10ld\n\
+fat32   %10d   %10lld\n\n",
+          FAT16_MIN, FAT16_MAX, FAT32_MIN, FAT32_MAX);
+
+  struct utsname buf;
+  if (-1 == uname(&buf)) err(1, NULL);
+  fprintf(stderr, "vfat-resize/%s (%s %s), libparted/%s\n",
+          VERSION, buf.sysname, buf.machine, ped_get_version());
 }
 
 char* devtype(int type) {

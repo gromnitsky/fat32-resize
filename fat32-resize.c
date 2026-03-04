@@ -85,16 +85,19 @@ char* info(BD *b) {
          ped_disk_get_last_partition_num(b->disk));
   printf("%-25s %lld\n", "sector_size", b->dev->sector_size);
 
-  printf("%-25s %s\n", "fs_type", b->part_fs->type->name);
-  printf("%-25s %lld\n", "fs_start", b->part_fs->geom->start);
-  printf("%-25s %lld\n", "fs_end", b->part_fs->geom->end);
+  printf("%-25s %lld\n", "partition_start", b->part->geom.start);
 
   PedSector partition_end = b->part->geom.end;
   printf("%-25s %lld\n", "partition_end", partition_end);
+  printf("%-25s %lld\n", "partition_length", b->part->geom.length);
+
+  printf("%-25s %s\n", "fs_type", b->part_fs->type->name);
+  printf("%-25s %lld\n", "fs_start", b->part_fs->geom->start);
+  printf("%-25s %lld\n", "fs_end", b->part_fs->geom->end);
+  printf("%-25s %lld\n", "fs_length", b->part_fs->geom->length);
+
   printf("%-25s %d\n", "partition_free_percent",
          100 - (int)((b->part_fs->geom->end/(partition_end*1.0))*100));
-
-  printf("%-25s %lld\n", "fs_length", b->part_fs->geom->length);
 
   return NULL;
 }
@@ -102,7 +105,8 @@ char* info(BD *b) {
 char* parse_size(BD *b, char *spec, PedSector *length) {
   char mode = spec[strlen(spec) - 1];
   PedSector r = 0;
-  PedSector max_length = b->part->geom.end;
+  PedSector max_length = b->part->geom.length;
+  if (getenv("V")) warnx("*** max_length=%lld", max_length);
 
   if (mode == '%') {
     spec[strlen(spec) - 1] = '\0';
@@ -124,21 +128,19 @@ char* parse_size(BD *b, char *spec, PedSector *length) {
 }
 
 char* resize(BD *b, char *spec) {
+  if (0 != strcmp(b->part_fs->type->name, "fat32"))
+    return (char*)b->part_fs->type->name;
+
   PedSector new_length = 0;
   char *err = parse_size(b, spec, &new_length);
   if (err) return err;
   if (getenv("V")) warnx("*** new_length=%lld", new_length);
 
-  if (0 != strcmp(b->part_fs->type->name, "fat32"))
-    return (char*)b->part_fs->type->name;
-
-  PedGeometry new_geom;
-  if (!ped_geometry_init(&new_geom, b->dev, 0, new_length))
-    return "ped_geometry_init: invalid SIZE spec";
-
   PedTimer *g_timer = NULL;     /* FIXME */
   char *r = NULL;
-  if (!ped_file_system_resize(b->part_fs, &new_geom, g_timer))
+  b->part_fs->geom->end = b->part_fs->geom->start + new_length;
+  b->part_fs->geom->length = new_length;
+  if (!ped_file_system_resize(b->part_fs, b->part_fs->geom, g_timer))
     r = "ped_file_system_resize";
 
   return r;

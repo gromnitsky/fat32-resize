@@ -14,8 +14,8 @@
 
 void usage() {
   fprintf(stderr, "Usage:\n \
-        vfat32-resize info   FILE\n \
-        vfat32-resize resize FILE [SIZE]\n \
+        vfat32-resize info   FILE PART_NUM\n \
+        vfat32-resize resize FILE PART_NUM [SIZE]\n \
 \n\
 Expand/shrink an unmounted filesystem located at FILE.\n\
 Doesn't resize FILE, only a FAT32 filesystem within it.\n\
@@ -31,31 +31,16 @@ void version() {
           VERSION, buf.sysname, buf.machine, ped_get_version());
 }
 
-char* devtype(int type) {
-  switch (type) {
-  case PED_DEVICE_SCSI     : return "scsi";
-  case PED_DEVICE_IDE      : return "ide";
-  case PED_DEVICE_DAC960   : return "dac960";
-  case PED_DEVICE_CPQARRAY : return "cpqarray";
-  case PED_DEVICE_FILE     : return "file";
-  case PED_DEVICE_ATARAID  : return "";
-  case PED_DEVICE_I2O      : return "I2O";
-  case PED_DEVICE_UBD      : return "ubd";
-  case PED_DEVICE_DASD     : return "dasd";
-  case PED_DEVICE_VIODASD  : return "viodasd";
-  case PED_DEVICE_SX8      : return "sx8";
-  case PED_DEVICE_DM       : return "dm";
-  case PED_DEVICE_XVD      : return "xvd";
-  case PED_DEVICE_SDMMC    : return "sdmmc";
-  case PED_DEVICE_VIRTBLK  : return "virtblk";
-  case PED_DEVICE_AOE      : return "AoE";
-  case PED_DEVICE_MD       : return "md";
-  case PED_DEVICE_LOOP     : return "loop";
-  case PED_DEVICE_NVME     : return "nvme";
-  case PED_DEVICE_RAM      : return "ram";
-  case PED_DEVICE_PMEM     : return "pmem";
-  }
-  return "unknown";
+char* transport(int type) {
+  char *transport[] = {
+    "unknown", "scsi", "ide", "dac960",
+    "cpqarray", "file", "ataraid", "i2o",
+    "ubd", "dasd", "viodasd", "sx8", "dm",
+    "xvd", "sd/mmc", "virtblk", "aoe",
+    "md", "loopback", "nvme", "brd",
+    "pmem"
+  };
+  return transport[type];
 }
 
 char *last_error;
@@ -67,55 +52,71 @@ PedExceptionOption my_libparted_exception_handler(PedException *ex) {
 
 typedef struct {
   PedDevice *dev;
-  PedGeometry geom;
+  PedDisk *disk;
+  PedPartition *part;
+  PedFileSystem *part_fs;
 } BD;
 
 void bd_close(BD *b) {
   if (b->dev) ped_device_close(b->dev);
 }
 
-char* bd_open(BD *b, char *file) {
-  if (! (b->dev = ped_device_get(file))) return "ped_device_get";
+char* bd_open(BD *b, char *file, int part_num) {
+  if ( !(b->dev = ped_device_get(file))) return "ped_device_get";
   if (!ped_device_open(b->dev)) return "ped_device_open";
 
-  if (!ped_geometry_init(&b->geom, b->dev, 0, b->dev->length))
-    return "ped_geometry_init";
+  if ( !(b->disk = ped_disk_new(b->dev)))
+    return "ped_disk_new";
+
+  if ( !(b->part = ped_disk_get_partition(b->disk, part_num)))
+    return "ped_disk_get_partition";
+
+  b->part_fs = ped_file_system_open(&b->part->geom);
+  if (!b->part_fs) return "ped_file_system_open";
 
   return NULL;                  /* OK, no error */
 }
 
 char* info(BD *b) {
-  PedFileSystem *fs = ped_file_system_open(&b->geom);
-  if (!fs) return "ped_file_system_open";
+  printf("%-25s %s\n", "transport", transport(b->dev->type));
+  printf("%-25s %lld\n", "sectors", b->dev->length);
+  printf("%-25s %s\n", "partition_table", b->disk->type->name);
+  printf("%-25s %d\n", "partitions",
+         ped_disk_get_last_partition_num(b->disk));
+  printf("%-25s %lld\n", "sector_size", b->dev->sector_size);
 
-  printf("%-15s %lld\n", "partition", b->dev->length);
-  printf("%-15s %lld\n", "sector_size", b->dev->sector_size);
-  printf("%-15s %s\n", "device_type", devtype(b->dev->type));
-  printf("%-15s %s\n", "fs_type", fs->type->name);
-  printf("%-15s %lld\n", "fs_end", fs->geom->end);
-  printf("%-15s %lld\n", "fs_length", fs->geom->length);
+  printf("%-25s %s\n", "fs_type", b->part_fs->type->name);
+  printf("%-25s %lld\n", "fs_start", b->part_fs->geom->start);
+  printf("%-25s %lld\n", "fs_end", b->part_fs->geom->end);
 
-  ped_file_system_close(fs);
+  PedSector partition_end = b->part->geom.end;
+  printf("%-25s %lld\n", "partition_end", partition_end);
+  printf("%-25s %d\n", "partition_free_percent",
+         100 - (int)((b->part_fs->geom->end/(partition_end*1.0))*100));
+
+  printf("%-25s %lld\n", "fs_length", b->part_fs->geom->length);
+
   return NULL;
 }
 
 char* parse_size(BD *b, char *spec, PedSector *length) {
   char mode = spec[strlen(spec) - 1];
   PedSector r = 0;
+  PedSector max_length = b->part->geom.end;
 
   if (mode == '%') {
     spec[strlen(spec) - 1] = '\0';
     int percent = strtoll(spec, NULL, 10);
     if (abs(percent) <= 0 || abs(percent) > 100)
       return "invalid SIZE percentage";
-    r = (percent/100.0) * b->dev->length;
+    r = (percent/100.0) * max_length;
 
   } else {
     r = strtoll(spec, NULL, 10);
   }
 
-  if (r < 0) r = b->dev->length + r;
-  if (r > b->dev->length) return "SIZE is too big";
+  if (r < 0) r = max_length + r;
+  if (r > max_length) return "SIZE is too big";
   if (r < FAT32_MIN) return "SIZE is too small";
   *length = r;
 
@@ -123,42 +124,39 @@ char* parse_size(BD *b, char *spec, PedSector *length) {
 }
 
 char* resize(BD *b, char *spec) {
-  PedSector length = 0;
-  char *err = parse_size(b, spec, &length);
+  PedSector new_length = 0;
+  char *err = parse_size(b, spec, &new_length);
   if (err) return err;
-  if (getenv("V")) warnx("*** length=%lld", length);
+  if (getenv("V")) warnx("*** new_length=%lld", new_length);
+
+  if (0 != strcmp(b->part_fs->type->name, "fat32"))
+    return (char*)b->part_fs->type->name;
 
   PedGeometry new_geom;
-  if (!ped_geometry_init(&new_geom, b->dev, 0 /* TODO */, length))
+  if (!ped_geometry_init(&new_geom, b->dev, 0, new_length))
     return "ped_geometry_init: invalid SIZE spec";
-
-  PedFileSystem *fs = ped_file_system_open(&b->geom);
-  if (!fs) return "ped_file_system_open";
-
-  if (0 != strcmp(fs->type->name, "fat32"))
-    return (char*)fs->type->name;
 
   PedTimer *g_timer = NULL;     /* FIXME */
   char *r = NULL;
-  if (!ped_file_system_resize(fs, &new_geom, g_timer))
+  if (!ped_file_system_resize(b->part_fs, &new_geom, g_timer))
     r = "ped_file_system_resize";
 
-  ped_file_system_close(fs);
   return r;
 }
 
 int main(int argc, char **argv) {
-  if (argc < 3) { usage(); exit(1); }
+  if (argc < 4) { usage(); exit(1); }
 
   char *mode = argv[1];
   char *file = argv[2];
-  char *size_spec = argv[3];
+  int part_num = strtoll(argv[3], NULL, 10);
+  char *size_spec = argv[4];
   ped_exception_set_handler(my_libparted_exception_handler);
 
   int exit_code = 0;
   BD b = {};
   char *err;
-  if ( !(err = bd_open(&b, file))) {
+  if ( !(err = bd_open(&b, file, part_num))) {
     if (0 == strcmp(mode, "info")) {
       if (size_spec) {
         warnx("extra args");

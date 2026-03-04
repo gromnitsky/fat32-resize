@@ -106,6 +106,8 @@ char* info(BD *b) {
 }
 
 char* parse_size(BD *b, char *spec, PedSector *length) {
+  if (0 == strlen(spec)) return "invalid SIZE";
+
   char mode = spec[strlen(spec) - 1];
   PedSector r = 0;
   PedSector max_length = b->part->geom.length;
@@ -148,10 +150,11 @@ char* resize(BD *b, char *spec) {
 
   PedTimer *g_timer = NULL;     /* FIXME */
   char *r = NULL;
-  b->part_fs->geom->end = b->part_fs->geom->start + new_length - 1;
-  b->part_fs->geom->length = new_length;
-  if (!ped_file_system_resize(b->part_fs, b->part_fs->geom, g_timer))
+  PedGeometry* new_geom = ped_geometry_duplicate(b->part_fs->geom);
+  ped_geometry_set_end(new_geom, b->part_fs->geom->start + new_length - 1);
+  if (!ped_file_system_resize(b->part_fs, new_geom, g_timer))
     r = "ped_file_system_resize";
+  ped_geometry_destroy(new_geom);
 
   if (!ped_device_sync(b->dev)) warnx("failed to sync");
   return r;

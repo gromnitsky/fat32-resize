@@ -13,7 +13,7 @@ fat32-resize - resize a FAT32 filesystem
 # SYNOPSIS
 
 **fat32-resize** *info*   *FILE* *PART_NUM*\
-**fat32-resize** *resize* *FILE* *PART_NUM* [*SIZE*]
+**fat32-resize** *resize* *FILE* *PART_NUM* *SIZE*
 
 # DESCRIPTION
 
@@ -25,7 +25,7 @@ and growing are supported.
 or a raw FAT32 image file. Neither *FILE* itself, nor partitions in it
 are resized.
 
-SIZE is given in sectors or as a percentage. A bare value sets the
+*SIZE* is given in sectors or as a percentage. A bare value sets the
 exact filesystem size; a % suffix sets it relative to the partition's
 available space. A leading + or - makes the value relative to the
 current filesystem size.
@@ -40,7 +40,7 @@ None.
 :   Success.
 
 **1**
-:   General error (invalid arguments, /O failure, etc.).
+:   General error (invalid arguments, I/O failure, etc.).
 
 # EXAMPLES
 

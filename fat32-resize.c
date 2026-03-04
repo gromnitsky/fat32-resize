@@ -8,22 +8,23 @@
 #include <parted/parted.h>
 
 #define VERSION   ("0.0.1")
-#define MEGABYTE  (1024*1024)
 #define TERABYTE  (1024*1024*1024*1024LL)
-#define FAT32_MIN ( (32 * MEGABYTE) + 140800)
-#define FAT32_MAX ( (2 * TERABYTE))
+#define FAT32_MIN 525226        /* sectors, or ~256MB */
+#define FAT32_MAX ( ( 2 * TERABYTE) / 512 )
 
 void usage() {
   fprintf(stderr, "Usage:\n \
         vfat32-resize info   FILE\n \
-        vfat32-resize resize FILE [BYTES]\n \
+        vfat32-resize resize FILE [SIZE]\n \
 \n\
-Doesn't resize a partition, only a FAT32 filesystem within it.\n\
-If BYTES is omitted, the fs is extended to the end of the partition.\n\
+Expand/shrink an unmounted filesystem located at FILE.\n\
+Doesn't resize FILE, only a FAT32 filesystem within it.\n\
 \n\
-FLAVOR         MIN             MAX\n\
-fat32   %10d   %10lld\n\n", FAT32_MIN, FAT32_MAX);
+SIZE formats: [-]sectors or [-]number%%.\n\
+Sectors range: %d...%lld.\n", FAT32_MIN, FAT32_MAX);
+}
 
+void version() {
   struct utsname buf;
   if (-1 == uname(&buf)) err(1, NULL);
   fprintf(stderr, "%s (%s %s), libparted/%s\n",
@@ -87,32 +88,55 @@ char* info(BD *b) {
   PedFileSystem *fs = ped_file_system_open(&b->geom);
   if (!fs) return "ped_file_system_open";
 
-  printf("%-15s %lld\n", "partition,s", b->dev->length);
-  printf("%-15s %lld\n", "partition,b", b->dev->length*512);
-  printf("%-15s %lld\n", "sector_size,b", b->dev->sector_size);
+  printf("%-15s %lld\n", "partition", b->dev->length);
+  printf("%-15s %lld\n", "sector_size", b->dev->sector_size);
   printf("%-15s %s\n", "device_type", devtype(b->dev->type));
   printf("%-15s %s\n", "fs_type", fs->type->name);
-  printf("%-15s %lld\n", "fs_end,b", fs->geom->end*512);
-  printf("%-15s %lld\n", "fs_length,b", fs->geom->length*512);
+  printf("%-15s %lld\n", "fs_end", fs->geom->end);
+  printf("%-15s %lld\n", "fs_length", fs->geom->length);
 
   ped_file_system_close(fs);
   return NULL;
 }
 
-char* resize(BD *b, PedSector bytes) {
-  PedSector length = bytes <= 0 ? b->dev->length : (bytes/512);
+char* parse_size(BD *b, char *spec, PedSector *length) {
+  char mode = spec[strlen(spec) - 1];
+  PedSector r = 0;
+
+  if (mode == '%') {
+    spec[strlen(spec) - 1] = '\0';
+    int percent = strtoll(spec, NULL, 10);
+    if (abs(percent) <= 0 || abs(percent) > 100)
+      return "invalid SIZE percentage";
+    r = (percent/100.0) * b->dev->length;
+
+  } else {
+    r = strtoll(spec, NULL, 10);
+  }
+
+  if (r < 0) r = b->dev->length + r;
+  if (r > b->dev->length) return "SIZE is too big";
+  if (r < FAT32_MIN) return "SIZE is too small";
+  *length = r;
+
+  return NULL;
+}
+
+char* resize(BD *b, char *spec) {
+  PedSector length = 0;
+  char *err = parse_size(b, spec, &length);
+  if (err) return err;
   if (getenv("V")) warnx("*** length=%lld", length);
 
-  PedSector start = 0;
-  /* if (getenv("START")) start = strtoll(getenv("START"), NULL, 10); */
-  /* if (start < 0) start = 0; */
-
   PedGeometry new_geom;
-  if (!ped_geometry_init(&new_geom, b->dev, start, length))
-    return "ped_geometry_init: invalid length";
+  if (!ped_geometry_init(&new_geom, b->dev, 0 /* TODO */, length))
+    return "ped_geometry_init: invalid SIZE spec";
 
   PedFileSystem *fs = ped_file_system_open(&b->geom);
   if (!fs) return "ped_file_system_open";
+
+  if (0 != strcmp(fs->type->name, "fat32"))
+    return (char*)fs->type->name;
 
   PedTimer *g_timer = NULL;     /* FIXME */
   char *r = NULL;
@@ -128,7 +152,7 @@ int main(int argc, char **argv) {
 
   char *mode = argv[1];
   char *file = argv[2];
-  char *length = argv[3];
+  char *size_spec = argv[3];
   ped_exception_set_handler(my_libparted_exception_handler);
 
   int exit_code = 0;
@@ -136,11 +160,19 @@ int main(int argc, char **argv) {
   char *err;
   if ( !(err = bd_open(&b, file))) {
     if (0 == strcmp(mode, "info")) {
-      err = info(&b);
+      if (size_spec) {
+        warnx("extra args");
+        exit_code = 1;
+      } else
+        err = info(&b);
 
     } else if (0 == strcmp(mode, "resize")) {
-      PedSector len = strtoll(length ? length : "end", NULL, 10);
-      err = resize(&b, len);
+      if (size_spec) {
+        err = resize(&b, size_spec);
+      } else {
+        warnx("missing a size spec");
+        exit_code = 1;
+      }
 
     } else {
       warnx("unknown mode");
@@ -149,11 +181,11 @@ int main(int argc, char **argv) {
   }
 
   if (err) {
-    warnx("%s: %s", err, last_error);
+    warnx(last_error ? "%s: %s" : "%s", err, last_error);
     exit_code = 1;
   }
 
   bd_close(&b);
-  if (last_error) free(last_error);
+  free(last_error);
   return exit_code;
 }

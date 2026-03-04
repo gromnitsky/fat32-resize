@@ -10,19 +10,20 @@ $(out)/fat32-resize: $(deps)
 	$(CC) $^ $(LDFLAGS) -o $@
 
 $(out)/%.o: %.c
-	@mkdir -p $(dir $@)
+	$(mkdir)
 	$(COMPILE.c) $< -o $@
+
+gentest: $(out)/600M $(out)/1G
 
 $(out)/600M:
 	$(mkdir)
 	-rm $@
 	mkfs.vfat -C $@ $$(( 520 * 1024 ))
 	truncate -s $(notdir $@) $@
-	mcopy -i $@ /usr/share/mythes/th_en_US_v2.dat ::
 
 $(out)/1G:
 	$(mkdir)
-	sh test/1G.sh $@
+	sh test/1G.sh > /dev/null $@
 
 mkdir = @mkdir -p $(dir $@)
 .DELETE_ON_ERROR:

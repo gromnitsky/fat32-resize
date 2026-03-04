@@ -18,5 +18,3 @@ EOF
 
 mkfs.fat -F16 --offset 2048    "$img" $((p1/2 - 1024))
 mkfs.fat --offset $((2048+p1)) "$img" $((p2/2))
-
-parted "$img" u s print free

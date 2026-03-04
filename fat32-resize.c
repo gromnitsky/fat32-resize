@@ -46,6 +46,7 @@ char* transport(int type) {
 char *last_error;
 
 PedExceptionOption my_libparted_exception_handler(PedException *ex) {
+  free(last_error);
   last_error = strdup(ex->message);
   return PED_EXCEPTION_UNHANDLED;
 }
@@ -58,6 +59,9 @@ typedef struct {
 } BD;
 
 void bd_close(BD *b) {
+  if (b->part_fs) ped_file_system_close(b->part_fs);
+  //  if (b->part) ped_disk_delete_partition(b->disk, b->part);
+  if (b->disk) ped_disk_destroy(b->disk);
   if (b->dev) ped_device_close(b->dev);
 }
 
@@ -87,8 +91,7 @@ char* info(BD *b) {
 
   printf("%-25s %lld\n", "partition_start", b->part->geom.start);
 
-  PedSector partition_end = b->part->geom.end;
-  printf("%-25s %lld\n", "partition_end", partition_end);
+  printf("%-25s %lld\n", "partition_end", b->part->geom.end);
   printf("%-25s %lld\n", "partition_length", b->part->geom.length);
 
   printf("%-25s %s\n", "fs_type", b->part_fs->type->name);
@@ -96,8 +99,8 @@ char* info(BD *b) {
   printf("%-25s %lld\n", "fs_end", b->part_fs->geom->end);
   printf("%-25s %lld\n", "fs_length", b->part_fs->geom->length);
 
-  printf("%-25s %d\n", "partition_free_percent",
-         100 - (int)((b->part_fs->geom->end/(partition_end*1.0))*100));
+  printf("%-25s %d\n", "partition_used_percent",
+         (int)((b->part_fs->geom->length * 100)/b->part->geom.length));
 
   return NULL;
 }
@@ -113,13 +116,20 @@ char* parse_size(BD *b, char *spec, PedSector *length) {
     int percent = strtoll(spec, NULL, 10);
     if (abs(percent) <= 0 || abs(percent) > 100)
       return "invalid SIZE percentage";
-    r = (percent/100.0) * max_length;
+    if (spec[0] == '-' || spec[0] == '+') {
+      r = (percent/100.0) * b->part_fs->geom->length;
+      r = b->part_fs->geom->length + r;
+    } else {
+      r = (percent/100.0) * max_length;
+    }
 
   } else {
     r = strtoll(spec, NULL, 10);
+    if (spec[0] == '-' || spec[0] == '+') {
+      r = b->part_fs->geom->length + r;
+    }
   }
 
-  if (r < 0) r = max_length + r;
   if (r > max_length) return "SIZE is too big";
   if (r < FAT32_MIN) return "SIZE is too small";
   *length = r;
@@ -138,11 +148,12 @@ char* resize(BD *b, char *spec) {
 
   PedTimer *g_timer = NULL;     /* FIXME */
   char *r = NULL;
-  b->part_fs->geom->end = b->part_fs->geom->start + new_length;
+  b->part_fs->geom->end = b->part_fs->geom->start + new_length - 1;
   b->part_fs->geom->length = new_length;
   if (!ped_file_system_resize(b->part_fs, b->part_fs->geom, g_timer))
     r = "ped_file_system_resize";
 
+  if (!ped_device_sync(b->dev)) warnx("failed to sync");
   return r;
 }
 

@@ -39,7 +39,7 @@ char* transport(int type) {
     "pmem"
   };
   int arrlen = sizeof arr / sizeof arr[0];
-  return type < 0 || type > arrlen ? arr[0] : arr[type];
+  return type < 0 || type >= arrlen ? arr[0] : arr[type];
 }
 
 char *last_error;
@@ -60,7 +60,10 @@ typedef struct {
 void bd_close(BD *b) {
   if (b->part_fs) ped_file_system_close(b->part_fs);
   if (b->disk) ped_disk_destroy(b->disk);
-  if (b->dev) ped_device_destroy(b->dev);
+  if (b->dev) {
+    ped_device_close(b->dev);
+    ped_device_destroy(b->dev);
+  }
 }
 
 char* bd_open(BD *b, char *file, int part_num) {
@@ -112,7 +115,7 @@ char* parse_size(BD *b, char *spec, PedSector *length) {
   if (mode == '%') {
     spec[strlen(spec) - 1] = '\0';
     int percent = strtoll(spec, NULL, 10);
-    if (abs(percent) <= 0 || abs(percent) > 100)
+    if (percent == 0 || abs(percent) > 100)
       return "invalid SIZE percentage";
     if (spec[0] == '-' || spec[0] == '+') {
       r = (percent/100.0) * b->part_fs->geom->length;
@@ -154,7 +157,7 @@ char* resize(BD *b, char *spec) {
     r = "ped_file_system_resize";
   ped_geometry_destroy(new_geom);
 
-  if (!ped_device_sync(b->dev)) r="ped_device_sync";
+  if (!ped_device_sync(b->dev) && !r) r = "ped_device_sync";
   return r;
 }
 

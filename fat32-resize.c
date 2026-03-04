@@ -21,18 +21,16 @@ Expand/shrink an unmounted filesystem located at FILE.\n\
 Doesn't resize FILE, only a FAT32 filesystem within it.\n\
 \n\
 SIZE formats: [-]sectors or [-]number%%.\n\
-Sectors range: %d...%lld.\n", FAT32_MIN, FAT32_MAX);
-}
+Sectors range: %d...%lld.\n\n", FAT32_MIN, FAT32_MAX);
 
-void version() {
   struct utsname buf;
   if (-1 == uname(&buf)) err(1, NULL);
-  fprintf(stderr, "%s (%s %s), libparted/%s\n",
+  fprintf(stderr, "v%s (%s %s), libparted/%s\n",
           VERSION, buf.sysname, buf.machine, ped_get_version());
 }
 
 char* transport(int type) {
-  char *transport[] = {
+  char *arr[] = {
     "unknown", "scsi", "ide", "dac960",
     "cpqarray", "file", "ataraid", "i2o",
     "ubd", "dasd", "viodasd", "sx8", "dm",
@@ -40,7 +38,8 @@ char* transport(int type) {
     "md", "loopback", "nvme", "brd",
     "pmem"
   };
-  return transport[type];
+  int arrlen = sizeof arr / sizeof arr[0];
+  return type < 0 || type > arrlen ? arr[0] : arr[type];
 }
 
 char *last_error;
@@ -80,7 +79,7 @@ char* bd_open(BD *b, char *file, int part_num) {
   return NULL;                  /* OK, no error */
 }
 
-char* info(BD *b) {
+void info(BD *b) {
   printf("%-25s %s\n", "transport", transport(b->dev->type));
   printf("%-25s %lld\n", "sectors", b->dev->length);
   printf("%-25s %s\n", "partition_table", b->disk->type->name);
@@ -100,8 +99,6 @@ char* info(BD *b) {
 
   printf("%-25s %d\n", "partition_used_percent",
          (int)((b->part_fs->geom->length * 100)/b->part->geom.length));
-
-  return NULL;
 }
 
 char* parse_size(BD *b, char *spec, PedSector *length) {
@@ -161,6 +158,10 @@ char* resize(BD *b, char *spec) {
   return r;
 }
 
+int is_mounted(BD *b) {
+  return ped_partition_is_busy(b->part);
+}
+
 int main(int argc, char **argv) {
   if (argc < 4) { usage(); exit(1); }
 
@@ -170,37 +171,36 @@ int main(int argc, char **argv) {
   char *size_spec = argc > 4 ? argv[4] : NULL;
   ped_exception_set_handler(my_libparted_exception_handler);
 
-  int exit_code = 0;
+  int exit_status = 0;
   BD b = {};
   char *err;
   if ( !(err = bd_open(&b, file, part_num))) {
     if (0 == strcmp(mode, "info")) {
       if (size_spec) {
-        warnx("extra args");
-        exit_code = 1;
+        err = "extra args";
       } else
-        err = info(&b);
+        info(&b);
 
     } else if (0 == strcmp(mode, "resize")) {
-      if (size_spec) {
+      if (is_mounted(&b)) {
+        err = "partition is mounted";
+      } else if (size_spec) {
         err = resize(&b, size_spec);
       } else {
-        warnx("missing a size spec");
-        exit_code = 1;
+        err = "missing SIZE";
       }
 
     } else {
-      warnx("unknown mode");
-      exit_code = 1;
+      err = "unknown mode";
     }
   }
 
   if (err) {
     warnx(last_error ? "%s: %s" : "%s", err, last_error);
-    exit_code = 1;
+    exit_status = 1;
   }
 
   bd_close(&b);
   free(last_error);
-  return exit_code;
+  return exit_status;
 }

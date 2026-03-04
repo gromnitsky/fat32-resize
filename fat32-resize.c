@@ -42,11 +42,10 @@ char* transport(int type) {
   return type < 0 || type >= arrlen ? arr[0] : arr[type];
 }
 
-char *last_error;
+char last_error[BUFSIZ];
 
 PedExceptionOption my_libparted_exception_handler(PedException *ex) {
-  free(last_error);
-  last_error = strdup(ex->message);
+  snprintf(last_error, sizeof last_error, "%s", ex->message);
   return PED_EXCEPTION_UNHANDLED;
 }
 
@@ -60,10 +59,7 @@ typedef struct {
 void bd_close(BD *b) {
   if (b->part_fs) ped_file_system_close(b->part_fs);
   if (b->disk) ped_disk_destroy(b->disk);
-  if (b->dev) {
-    ped_device_close(b->dev);
-    ped_device_destroy(b->dev);
-  }
+  if (b->dev) ped_device_destroy(b->dev);
 }
 
 char* bd_open(BD *b, char *file, int part_num) {
@@ -156,7 +152,8 @@ char* resize(BD *b, char *spec) {
     r = "ped_file_system_resize";
   ped_geometry_destroy(new_geom);
 
-  if (!ped_device_sync(b->dev) && !r) r = "ped_device_sync";
+  // there is no need to sync anything if resizing has failed
+  if (!r && !ped_device_sync(b->dev)) r = "ped_device_sync";
   return r;
 }
 
@@ -198,11 +195,10 @@ int main(int argc, char **argv) {
   }
 
   if (err) {
-    warnx(last_error ? "%s: %s" : "%s", err, last_error);
+    warnx(strlen(last_error) ? "%s: %s" : "%s", err, last_error);
     exit_status = 1;
   }
 
   bd_close(&b);
-  free(last_error);
   return exit_status;
 }

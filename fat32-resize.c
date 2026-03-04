@@ -60,9 +60,8 @@ typedef struct {
 
 void bd_close(BD *b) {
   if (b->part_fs) ped_file_system_close(b->part_fs);
-  //  if (b->part) ped_disk_delete_partition(b->disk, b->part);
   if (b->disk) ped_disk_destroy(b->disk);
-  if (b->dev) ped_device_close(b->dev);
+  if (b->dev) ped_device_destroy(b->dev);
 }
 
 char* bd_open(BD *b, char *file, int part_num) {
@@ -151,12 +150,14 @@ char* resize(BD *b, char *spec) {
   PedTimer *g_timer = NULL;     /* FIXME */
   char *r = NULL;
   PedGeometry* new_geom = ped_geometry_duplicate(b->part_fs->geom);
+  if (!new_geom) return "ped_geometry_duplicate";
+
   ped_geometry_set_end(new_geom, b->part_fs->geom->start + new_length - 1);
   if (!ped_file_system_resize(b->part_fs, new_geom, g_timer))
     r = "ped_file_system_resize";
   ped_geometry_destroy(new_geom);
 
-  if (!ped_device_sync(b->dev)) warnx("failed to sync");
+  if (!ped_device_sync(b->dev)) r="ped_device_sync";
   return r;
 }
 
@@ -166,7 +167,7 @@ int main(int argc, char **argv) {
   char *mode = argv[1];
   char *file = argv[2];
   int part_num = strtoll(argv[3], NULL, 10);
-  char *size_spec = argv[4];
+  char *size_spec = argc > 4 ? argv[4] : NULL;
   ped_exception_set_handler(my_libparted_exception_handler);
 
   int exit_code = 0;

@@ -6,6 +6,8 @@ LDFLAGS := $(shell pkg-config --libs $(libs))
 
 deps := $(patsubst %.c, $(out)/%.o, $(wildcard *.c))
 
+all: $(addprefix $(out)/, fat32-resize.8 fat32-resize)
+
 $(out)/fat32-resize: $(deps)
 	$(CC) $^ $(LDFLAGS) -o $@
 
@@ -24,6 +26,10 @@ $(out)/600M:
 $(out)/1G:
 	$(mkdir)
 	sh test/1G.sh > /dev/null $@
+
+$(out)/%.8: %.8.md
+	$(mkdir)
+	pandoc $< -s -t man -o $@
 
 mkdir = @mkdir -p $(dir $@)
 .DELETE_ON_ERROR:

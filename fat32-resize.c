@@ -113,9 +113,8 @@ char* parse_size(BD *b, char *spec, PedSector *length) {
   if (getenv("V")) warnx("*** max_length=%lld", max_length);
 
   if (mode == '%') {
-    spec[strlen(spec) - 1] = '\0';
-    int percent = strtoll(spec, NULL, 10);
-    if (percent == 0 || abs(percent) > 100)
+    long long percent = strtoll(spec, NULL, 10);
+    if (percent <= 0 || percent > 100)
       return "invalid SIZE percentage";
     if (spec[0] == '-' || spec[0] == '+') {
       r = (percent/100.0) * b->part_fs->geom->length;

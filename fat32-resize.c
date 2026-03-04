@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/utsname.h>
+#include <errno.h>
 
 #include <parted/parted.h>
 
@@ -110,7 +111,7 @@ char* parse_size(BD *b, char *spec, PedSector *length) {
 
   if (mode == '%') {
     long long percent = strtoll(spec, NULL, 10);
-    if (percent <= 0 || percent > 100)
+    if (errno == ERANGE || percent == 0 || percent <= -100 || percent > 100)
       return "invalid SIZE percentage";
     if (spec[0] == '-' || spec[0] == '+') {
       r = (percent/100.0) * b->part_fs->geom->length;
@@ -121,6 +122,7 @@ char* parse_size(BD *b, char *spec, PedSector *length) {
 
   } else {
     r = strtoll(spec, NULL, 10);
+    if (errno == ERANGE) return "SIZE out of range";
     if (spec[0] == '-' || spec[0] == '+') {
       r = b->part_fs->geom->length + r;
     }

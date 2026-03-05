@@ -15,21 +15,25 @@ $(out)/%.o: %.c
 	$(mkdir)
 	$(COMPILE.c) $< -o $@
 
-gentest: $(out)/600M $(out)/1G
+$(out)/%.8: %.8.md
+	$(mkdir)
+	pandoc $< -s -t man -o $@
 
-$(out)/600M:
+
+test: all $(out)/junk/600M $(out)/junk/1G
+	bats test/test_*.sh --verbose-run $(o)
+
+.PHONY: $(out)/junk/*
+
+$(out)/junk/600M:
 	$(mkdir)
 	-rm $@
 	mkfs.vfat -C $@ $$(( 520 * 1024 ))
 	truncate -s $(notdir $@) $@
 
-$(out)/1G:
+$(out)/junk/1G:
 	$(mkdir)
 	sh test/1G.sh > /dev/null $@
-
-$(out)/%.8: %.8.md
-	$(mkdir)
-	pandoc $< -s -t man -o $@
 
 mkdir = @mkdir -p $(dir $@)
 .DELETE_ON_ERROR:

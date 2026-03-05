@@ -101,28 +101,36 @@ void info(BD *b) {
          (int)((b->part_fs->geom->length * 100)/b->part->geom.length));
 }
 
+void LOG(char *s, ...) {
+  if (!getenv("V")) return;
+  va_list ap; va_start(ap, s); vwarnx(s, ap); va_end(ap);
+}
+
 char* parse_size(BD *b, char *spec, PedSector *length) {
   if (0 == strlen(spec)) return "invalid SIZE";
 
-  char mode = spec[strlen(spec) - 1];
-  PedSector r = 0;
   PedSector max_length = b->part->geom.length;
-  if (getenv("V")) warnx("*** max_length=%lld", max_length);
+  LOG("*** max_length=%lld", max_length);
 
+  errno = 0;
+  PedSector r = strtoll(spec, NULL, 10);
+  if (errno == ERANGE) return "SIZE out of range";
+  if (r == 0) {                 /* user requested to do nothing */
+    *length = 0;
+    return NULL;
+  }
+
+  char mode = spec[strlen(spec) - 1];
   if (mode == '%') {
-    long long percent = strtoll(spec, NULL, 10);
-    if (errno == ERANGE || percent == 0 || percent <= -100 || percent > 100)
-      return "invalid SIZE percentage";
+    if (r <= -100 || r > 100) return "invalid SIZE percentage";
     if (spec[0] == '-' || spec[0] == '+') {
-      r = (percent/100.0) * b->part_fs->geom->length;
+      r = (r/100.0) * b->part_fs->geom->length;
       r = b->part_fs->geom->length + r;
     } else {
-      r = (percent/100.0) * max_length;
+      r = (r/100.0) * max_length;
     }
 
   } else {
-    r = strtoll(spec, NULL, 10);
-    if (errno == ERANGE) return "SIZE out of range";
     if (spec[0] == '-' || spec[0] == '+') {
       r = b->part_fs->geom->length + r;
     }
@@ -142,7 +150,8 @@ char* resize(BD *b, char *spec) {
   PedSector new_length = 0;
   char *err = parse_size(b, spec, &new_length);
   if (err) return err;
-  if (getenv("V")) warnx("*** new_length=%lld", new_length);
+  if (new_length == 0) return NULL; /* gracefully do no resizing */
+  LOG("*** new_length=%lld", new_length);
 
   PedTimer *g_timer = NULL;     /* FIXME */
   char *r = NULL;

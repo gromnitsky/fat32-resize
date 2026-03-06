@@ -80,6 +80,11 @@ char* bd_open(BD *b, char *file, int part_num) {
 }
 
 void info(BD *b) {
+  PedSector part_start = b->part->geom.start;
+  PedSector part_len   = b->part->geom.length;
+  PedSector fs_start   = b->part_fs->geom->start;
+  PedSector fs_end     = b->part_fs->geom->end;
+
   printf("%-25s %s\n", "transport", transport(b->dev->type));
   printf("%-25s %lld\n", "sectors", b->dev->length);
   printf("%-25s %s\n", "partition_table", b->disk->type->name);
@@ -87,18 +92,26 @@ void info(BD *b) {
          ped_disk_get_last_partition_num(b->disk));
   printf("%-25s %lld\n", "sector_size", b->dev->sector_size);
 
-  printf("%-25s %lld\n", "partition_start", b->part->geom.start);
+  printf("%-25s %lld\n", "partition_start", part_start);
 
   printf("%-25s %lld\n", "partition_end", b->part->geom.end);
-  printf("%-25s %lld\n", "partition_length", b->part->geom.length);
+  printf("%-25s %lld\n", "partition_length", part_len);
 
   printf("%-25s %s\n", "fs_type", b->part_fs->type->name);
-  printf("%-25s %lld\n", "fs_start", b->part_fs->geom->start);
-  printf("%-25s %lld\n", "fs_end", b->part_fs->geom->end);
+  printf("%-25s %lld\n", "fs_start", fs_start);
+  printf("%-25s %lld\n", "fs_end", fs_end);
   printf("%-25s %lld\n", "fs_length", b->part_fs->geom->length);
 
   printf("%-25s %d\n", "partition_used_percent",
-         (int)((b->part_fs->geom->length * 100)/b->part->geom.length));
+         (int)((b->part_fs->geom->length * 100)/part_len));
+
+  const int BAR_WIDTH = 31;
+  printf("%-25s l", "lolbar");
+  for (int i = 0; i < BAR_WIDTH; i++) {
+    PedSector sector = part_start + ((PedSector)i * part_len) / BAR_WIDTH;
+    putchar(sector >= fs_start && sector <= fs_end ? 'o' : '.');
+  }
+  printf("l\n");
 }
 
 void LOG(char *s, ...) {

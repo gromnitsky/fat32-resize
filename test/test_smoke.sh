@@ -25,7 +25,8 @@ fs_type                   fat32
 fs_start                  0
 fs_end                    1064951
 fs_length                 1064952
-partition_used_percent    86\
+partition_used_percent    86
+lolbar                    looooooooooooooooooooooooooo....l\
 " ]
 }
 
@@ -59,7 +60,8 @@ fs_type                   fat32
 fs_start                  0
 fs_end                    1228799
 fs_length                 1228800
-partition_used_percent    100\
+partition_used_percent    100
+lolbar                    loooooooooooooooooooooooooooooool\
 " ]
 }
 
@@ -121,7 +123,8 @@ fs_type                   fat32
 fs_start                  411648
 fs_end                    2097151
 fs_length                 1685504
-partition_used_percent    100\
+partition_used_percent    100
+lolbar                    loooooooooooooooooooooooooooooool\
 " ]
 }
 

@@ -1,7 +1,7 @@
 ---
 title: FAT32-RESIZE
 section: 8
-date: 2026-03-04
+date: 2026-03-06
 header: System Administration Utilities
 footer:
 ---
@@ -12,8 +12,8 @@ fat32-resize - resize a FAT32 filesystem
 
 # SYNOPSIS
 
-**fat32-resize** *info*   *FILE* *PART_NUM*\
-**fat32-resize** *resize* *FILE* *PART_NUM* *SIZE*
+**fat32-resize** *FILE* *info*   *PART_NUM*\
+**fat32-resize** *FILE* *resize* *PART_NUM* *SIZE*
 
 # DESCRIPTION
 
@@ -46,24 +46,26 @@ None.
 
 Print information about partition 2 in an image file:
 
-    fat32-resize info sdcard.img 2
+    $ fat32-resize sdcard.img info 2
 
-Set the FAT32 filesystem size on */dev/sdb2* to exactly 4 GB:
+Set the FAT32 filesystem size on */dev/sdb2* to exactly 4 GB (assuming
+sdb2 is big enough):
 
-    fat32-resize resize /dev/sdb 2 $(( (4 * 1024**3)/512 ))
+    # fat32-resize /dev/sdb resize 2 $(( (4 * 1024**3)/512 ))
 
 Set a filesystem to 50% of the available partition space:
 
-    fat32-resize resize partition.img 1 50%
+    $ fat32-resize partition.img resize 1 50%
 
 Shrink a filesystem by 20% of its current size:
 
-    fat32-resize resize partition.img 1 -20%
+    $ fat32-resize partition.img resize 1 -20%
 
 # NOTES
 
 The filesystem must be unmounted before resizing. If you don't know
-what are doing, shrinking may cause data loss.
+what you are doing, aggressive shrinking can cause data loss. Using 0
+for *SIZE* is a no-op.
 
 # SEE ALSO
 

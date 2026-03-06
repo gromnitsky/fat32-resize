@@ -11,7 +11,7 @@ adler32=$BATS_TEST_DIRNAME/adler32.rb # faster than sha*
 }
 
 @test "info 600M" {
-    run $fat32_resize info _out/junk/600M 1
+    run $fat32_resize _out/junk/600M info 1
     [ "$output" = "\
 transport                 file
 sectors                   1228800
@@ -31,22 +31,22 @@ lolbar                    looooooooooooooooooooooooooo....l\
 }
 
 @test "info 600M wrong partition" {
-    run -1 "$fat32_resize" info _out/junk/600M 0
+    run -1 "$fat32_resize" _out/junk/600M info 0
     [ "$output" = "fat32-resize: ped_disk_get_partition" ]
 }
 
 @test "info 600M resize noop" {
     checksum1=`$adler32 _out/junk/600M`
-    run $fat32_resize resize _out/junk/600M 1 0
+    run $fat32_resize _out/junk/600M resize 1 0
     [ "$output" = "" ]
     checksum2=`$adler32 _out/junk/600M`
     [ "$checksum1" == "$checksum2" ]
 }
 
 @test "info 600M resize to 100%" {
-    run $fat32_resize resize _out/junk/600M 1 100%
+    run $fat32_resize _out/junk/600M resize 1 100%
     [ "$output" = "" ]
-    run $fat32_resize info _out/junk/600M 1
+    run $fat32_resize _out/junk/600M info 1
     [ "$output" = "\
 transport                 file
 sectors                   1228800
@@ -66,50 +66,50 @@ lolbar                    loooooooooooooooooooooooooooooool\
 }
 
 @test "info 600M resize to 50%" {
-    run $fat32_resize resize _out/junk/600M 1 50%
+    run $fat32_resize _out/junk/600M resize 1 50%
     [ "$output" = "" ]
-    run $fat32_resize info _out/junk/600M 1
+    run $fat32_resize _out/junk/600M info 1
     [ "${lines[12]}" == "partition_used_percent    50" ]
 }
 
 f2() { awk '{print $2}'; }
 
 @test "info 600M shrink/grow by 1 sector" {
-    run $fat32_resize info _out/junk/600M 1
+    run $fat32_resize _out/junk/600M info 1
     len_orig=`echo "${lines[11]}" | f2`
 
-    run $fat32_resize resize _out/junk/600M 1 -1
+    run $fat32_resize _out/junk/600M resize 1 -1
 
-    run $fat32_resize info _out/junk/600M 1
+    run $fat32_resize _out/junk/600M info 1
     len_minus_1=`echo "${lines[11]}" | f2`
     [ "$(( len_orig - 1))" == "$len_minus_1" ]
 
-    run $fat32_resize resize _out/junk/600M 1 +1
+    run $fat32_resize _out/junk/600M resize 1 +1
 
-    run $fat32_resize info _out/junk/600M 1
+    run $fat32_resize _out/junk/600M info 1
     len_plus_1=`echo "${lines[11]}" | f2`
     [ "$len_orig" == "$len_plus_1" ]
 }
 
 @test "info 600M invalid resize params" {
-    run -1 "$fat32_resize" resize _out/junk/600M 1 -100%
+    run -1 "$fat32_resize" _out/junk/600M resize 1 -100%
     [ "$output" = "fat32-resize: invalid SIZE percentage" ]
-    run -1 "$fat32_resize" resize _out/junk/600M 1 101%
+    run -1 "$fat32_resize" _out/junk/600M resize 1 101%
     [ "$output" = "fat32-resize: invalid SIZE percentage" ]
-    run -1 "$fat32_resize" resize _out/junk/600M 1 100000000000000000
+    run -1 "$fat32_resize" _out/junk/600M resize 1 100000000000000000
     [ "$output" = "fat32-resize: SIZE is too big" ]
-    run -1 "$fat32_resize" resize _out/junk/600M 1 99999999999999999999999
+    run -1 "$fat32_resize" _out/junk/600M resize 1 99999999999999999999999
     [ "$output" = "fat32-resize: SIZE out of range" ]
-    run -1 "$fat32_resize" resize _out/junk/600M 1 525225
+    run -1 "$fat32_resize" _out/junk/600M resize 1 525225
     [ "$output" = "fat32-resize: SIZE is too small" ]
-    run -1 "$fat32_resize" resize _out/junk/600M 1 10%
+    run -1 "$fat32_resize" _out/junk/600M resize 1 10%
     [ "$output" = "fat32-resize: SIZE is too small" ]
 }
 
 @test "info 1G resize to 100%" {
-    run $fat32_resize resize _out/junk/1G 2 100%
+    run $fat32_resize _out/junk/1G resize 2 100%
     [ "$output" = "" ]
-    run $fat32_resize info _out/junk/1G 2
+    run $fat32_resize _out/junk/1G info 2
     [ "$output" = "\
 transport                 file
 sectors                   2097152
@@ -129,6 +129,6 @@ lolbar                    loooooooooooooooooooooooooooooool\
 }
 
 @test "info 1G wrong fs" {
-    run -1 "$fat32_resize" resize _out/junk/1G 1 100%
+    run -1 "$fat32_resize" _out/junk/1G resize 1 100%
     [ "$output" = "fat32-resize: fat16" ]
 }

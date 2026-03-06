@@ -10,16 +10,16 @@
 
 #define VERSION   ("0.0.1")
 #define TERABYTE  (1024*1024*1024*1024LL)
-#define FAT32_MIN 525226        /* sectors, or ~256MB */
+#define FAT32_MIN (525226)      /* sectors, or ~256MB */
 #define FAT32_MAX ( ( 2 * TERABYTE) / 512 )
 
 void usage() {
   fprintf(stderr, "Usage:\n \
-        vfat32-resize info   FILE PART_NUM\n \
-        vfat32-resize resize FILE PART_NUM [SIZE]\n \
+        vfat32-resize FILE info   PART_NUM\n \
+        vfat32-resize FILE resize PART_NUM SIZE\n \
 \n\
 Expand/shrink an unmounted filesystem located at FILE.\n\
-Doesn't resize FILE, only a FAT32 filesystem within it.\n\
+FILE is not resized, only a FAT32 filesystem within its partition.\n\
 \n\
 SIZE formats: [-]sectors or [-]number%%.\n\
 Sectors range: %d...%lld.\n\n", FAT32_MIN, FAT32_MAX);
@@ -40,7 +40,7 @@ char* transport(int type) {
     "pmem"
   };
   int arrlen = sizeof arr / sizeof arr[0];
-  return type < 0 || type >= arrlen ? arr[0] : arr[type];
+  return type < 0 || type >= arrlen ? "report-a-bug" : arr[type];
 }
 
 char last_error[BUFSIZ];
@@ -188,8 +188,8 @@ int is_mounted(BD *b) {
 int main(int argc, char **argv) {
   if (argc < 4) { usage(); exit(1); }
 
-  char *mode = argv[1];
-  char *file = argv[2];
+  char *file = argv[1];
+  char *mode = argv[2];
   int part_num = strtoll(argv[3], NULL, 10);
   char *size_spec = argc > 4 ? argv[4] : NULL;
   ped_exception_set_handler(my_libparted_exception_handler);
